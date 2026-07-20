@@ -118,9 +118,17 @@ jobs:
 
           while IFS= read -r line; do
             [ -z "$line" ] && continue
+          
             book="${line%%::*}"
+          
+            # Skip update notifications for books created in this push.
+            if printf '%s\n' "$NEW_BOOKS" | grep -Fxq "$book"; then
+              continue
+            fi
+          
             chapters="${line#*::}"
             PRETTY=$(echo "$book" | tr '-' ' ')
+          
             if [ -n "$chapters" ]; then
               CH_PRETTY=$(echo "$chapters" | tr ',' '|' | sed 's/|/, /g' | tr '-' ' ')
               send "✏️ **${PRETTY}** updated - new/edited: ${CH_PRETTY}\n${SITE_URL}"
