@@ -17,67 +17,82 @@ jobs:
       - name: Detect book and chapter changes
         id: detect
         env:
-          NOTES_DIR: src/site/notes   # <-- change this to wherever your published notes live
+          NOTES_DIR: src/site/notes
         run: |
-          set -e
-
+          set -euo pipefail
+      
           BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+      
           if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
-            echo "First-ever push seen by this workflow - falling back to comparing against the parent of HEAD."
-            BEFORE=$(git rev-parse "${{ github.sha }}~1")
+            BEFORE=$(git rev-parse "$AFTER~1")
           fi
-
-          echo "::group::Debug info"
-          echo "before: $BEFORE"
-          echo "after:  ${{ github.sha }}"
-          echo "--- raw diff (name-status) under $NOTES_DIR ---"
-          git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" || echo "(git diff failed or produced nothing)"
+      
+          echo "::group::Changed files"
+          git diff --name-status "$BEFORE" "$AFTER" -- "$NOTES_DIR"
           echo "::endgroup::"
-
-          # Every added or modified file under NOTES_DIR in this push
-          CHANGED_FILES=$(git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" \
-            | awk '$1=="A" || $1=="M" {print $2}')
-
-          # Top-level folder (book) for each changed file
-          TOP_DIRS=$(
-            while IFS= read -r file; do
-                file="${file#"$NOTES_DIR/"}"
-                printf '%s\n' "${file%%/*}"
-            done <<< "$CHANGED_FILES" | sort -u
-            )
-
-          NEW_BOOKS=""
-          UPDATED_BOOKS=""
-
-          while IFS= read -r book; do
-            [ -z "$book" ] && continue
-            if ! git ls-tree -d --name-only "$BEFORE" -- "$NOTES_DIR/$book" | grep -q .; then
-              echo "-> '$book' is a NEW book"
-              NEW_BOOKS="${NEW_BOOKS}${book}"$'\n'
+      
+          declare -A NEW_BOOKS
+          declare -A UPDATED_BOOKS
+      
+          while IFS=$'\t' read -r status path; do
+            case "$status" in
+              A|M) ;;
+              *) continue ;;
+            esac
+      
+            rel="${path#"$NOTES_DIR/"}"
+      
+            # Ignore files directly inside NOTES_DIR
+            [[ "$rel" != */* ]] && continue
+      
+            book="${rel%%/*}"
+            file="${rel#*/}"
+            index="${book}.md"
+      
+            if [[ "$status" == "A" && "$file" == "$index" ]]; then
+              # Brand-new book
+              NEW_BOOKS["$book"]=1
             else
-              # Which chapters (files other than the book's own waypoint) changed?
-              CHAPTERS=$(echo "$CHANGED_FILES" \
-                | grep -F "$NOTES_DIR/$book/" \
-                | sed -E "s|^$NOTES_DIR/$book/||; s|\.md$||" \
-                | grep -vFx "$book" \
-                | sort -u \
-                | paste -sd ',' -)
-              echo "-> '$book' was UPDATED (chapters: ${CHAPTERS:-waypoint only})"
-              UPDATED_BOOKS="${UPDATED_BOOKS}${book}::${CHAPTERS}"$'\n'
+              # Existing book (or newly added chapter)
+              if [[ "$file" != "$index" ]]; then
+                chapter="${file%.md}"
+      
+                if [[ -n "${UPDATED_BOOKS[$book]:-}" ]]; then
+                  UPDATED_BOOKS["$book"]="${UPDATED_BOOKS[$book]},$chapter"
+                else
+                  UPDATED_BOOKS["$book"]="$chapter"
+                fi
+              else
+                # Index page edited
+                : "${UPDATED_BOOKS[$book]:=}"
+              fi
             fi
-          done <<< "$TOP_DIRS"
-
-          echo "Final new books: [$NEW_BOOKS]"
-          echo "Final updated books: [$UPDATED_BOOKS]"
-
+          done < <(git diff --name-status "$BEFORE" "$AFTER" -- "$NOTES_DIR")
+      
           {
             echo "new_books<<EOF"
-            echo "$NEW_BOOKS"
+            for b in "${!NEW_BOOKS[@]}"; do
+              echo "$b"
+            done | sort
             echo "EOF"
+      
             echo "updated_books<<EOF"
-            echo "$UPDATED_BOOKS"
+            for b in "${!UPDATED_BOOKS[@]}"; do
+              echo "$b::${UPDATED_BOOKS[$b]}"
+            done | sort
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+      
+          echo "::group::Summary"
+          echo "New books:"
+          printf '%s\n' "${!NEW_BOOKS[@]}"
+          echo
+          echo "Updated books:"
+          for b in "${!UPDATED_BOOKS[@]}"; do
+            echo "$b -> ${UPDATED_BOOKS[$b]}"
+          done
+          echo "::endgroup::"
 
       # ---- 2. Post to Discord ----
       - name: Notify Discord
