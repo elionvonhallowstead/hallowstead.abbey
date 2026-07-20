@@ -1,0 +1,85 @@
+name: Notify Discord on New Book
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # ---- 1. Did this push add a brand-new top-level folder (= a new book)? ----
+      - name: Detect new book folders
+        id: detect
+        env:
+          NOTES_DIR: src/site/notes   # <-- change this to wherever your published notes live
+        run: |
+          set -e
+
+          # New/added files in this push, restricted to the notes dir
+          ADDED_TOP_DIRS=$(git diff --name-status "${{ github.event.before }}" "${{ github.sha }}" -- "$NOTES_DIR" \
+            | awk '$1=="A"{print $2}' \
+            | sed -E "s|^$NOTES_DIR/||" \
+            | awk -F/ 'NF>1{print $1}' \
+            | sort -u)
+
+          NEW_BOOKS=""
+          while IFS= read -r book; do
+            [ -z "$book" ] && continue
+            # Only count it if that folder did NOT exist before this push
+            if ! git ls-tree -d --name-only "${{ github.event.before }}" -- "$NOTES_DIR/$book" | grep -q .; then
+              NEW_BOOKS="${NEW_BOOKS}${book}"$'\n'
+            fi
+          done <<< "$ADDED_TOP_DIRS"
+
+          echo "books<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NEW_BOOKS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # ---- 2. Wait for the matching Vercel deployment to finish ----
+      - name: Wait for Vercel deployment
+        if: steps.detect.outputs.books != ''
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          SHA="${{ github.sha }}"
+          for i in $(seq 1 30); do
+            RESP=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v7/deployments?projectId=$VERCEL_PROJECT_ID&sha=$SHA&limit=1")
+            STATE=$(echo "$RESP" | jq -r '.deployments[0].readyState // empty')
+            URL=$(echo "$RESP" | jq -r '.deployments[0].url // empty')
+
+            if [ "$STATE" = "READY" ]; then
+              echo "url=https://$URL" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$STATE" = "ERROR" ] || [ "$STATE" = "CANCELED" ]; then
+              echo "Vercel deployment failed - skipping Discord notification."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Vercel deployment."
+          exit 1
+
+      # ---- 3. Post to Discord ----
+      - name: Notify Discord
+        if: steps.detect.outputs.books != '' && steps.vercel.outputs.url != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SITE_URL: ${{ steps.vercel.outputs.url }}
+        run: |
+          while IFS= read -r book; do
+            [ -z "$book" ] && continue
+            PRETTY_NAME=$(echo "$book" | tr '-' ' ')
+            curl -s -H "Content-Type: application/json" -X POST \
+              -d "{\"content\": \"📚 New book added: **${PRETTY_NAME}**\n${SITE_URL}\"}" \
+              "$DISCORD_WEBHOOK_URL"
+          done <<< "${{ steps.detect.outputs.books }}"
