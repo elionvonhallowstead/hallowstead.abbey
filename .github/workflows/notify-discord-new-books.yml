@@ -1,4 +1,143 @@
-name: Notify Discord on New Book
+name: Notify Discord on New Book / Chapter
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history - a shallow clone can miss the "before" commit if a push contains several commits
+
+      # ---- 1. What changed: brand-new books, and/or chapters added/edited in existing books? ----
+      - name: Detect book and chapter changes
+        id: detect
+        env:
+          NOTES_DIR: src/site/notes   # <-- change this to wherever your published notes live
+        run: |
+          set -e
+
+          BEFORE="${{ github.event.before }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+            echo "First-ever push seen by this workflow - falling back to comparing against the parent of HEAD."
+            BEFORE=$(git rev-parse "${{ github.sha }}~1")
+          fi
+
+          echo "::group::Debug info"
+          echo "before: $BEFORE"
+          echo "after:  ${{ github.sha }}"
+          echo "--- raw diff (name-status) under $NOTES_DIR ---"
+          git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" || echo "(git diff failed or produced nothing)"
+          echo "::endgroup::"
+
+          # Every added or modified file under NOTES_DIR in this push
+          CHANGED_FILES=$(git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" \
+            | awk '$1=="A" || $1=="M" {print $2}')
+
+          # Top-level folder (book) for each changed file
+          TOP_DIRS=$(echo "$CHANGED_FILES" \
+            | sed -E "s|^$NOTES_DIR/||" \
+            | awk -F/ 'NF>1{print $1}' \
+            | sort -u)
+
+          NEW_BOOKS=""
+          UPDATED_BOOKS=""
+
+          while IFS= read -r book; do
+            [ -z "$book" ] && continue
+            if ! git ls-tree -d --name-only "$BEFORE" -- "$NOTES_DIR/$book" | grep -q .; then
+              echo "-> '$book' is a NEW book"
+              NEW_BOOKS="${NEW_BOOKS}${book}"$'\n'
+            else
+              # Which chapters (files other than the book's own waypoint) changed?
+              CHAPTERS=$(echo "$CHANGED_FILES" \
+                | grep -F "$NOTES_DIR/$book/" \
+                | sed -E "s|^$NOTES_DIR/$book/||; s|\.md$||" \
+                | grep -vFx "$book" \
+                | sort -u \
+                | paste -sd ',' -)
+              echo "-> '$book' was UPDATED (chapters: ${CHAPTERS:-waypoint only})"
+              UPDATED_BOOKS="${UPDATED_BOOKS}${book}::${CHAPTERS}"$'\n'
+            fi
+          done <<< "$TOP_DIRS"
+
+          echo "Final new books: [$NEW_BOOKS]"
+          echo "Final updated books: [$UPDATED_BOOKS]"
+
+          {
+            echo "new_books<<EOF"
+            echo "$NEW_BOOKS"
+            echo "EOF"
+            echo "updated_books<<EOF"
+            echo "$UPDATED_BOOKS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ---- 2. Wait for the matching Vercel deployment to finish ----
+      - name: Wait for Vercel deployment
+        if: steps.detect.outputs.new_books != '' || steps.detect.outputs.updated_books != ''
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          SHA="${{ github.sha }}"
+          for i in $(seq 1 30); do
+            RESP=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v7/deployments?projectId=$VERCEL_PROJECT_ID&sha=$SHA&limit=1")
+            STATE=$(echo "$RESP" | jq -r '.deployments[0].readyState // empty')
+            URL=$(echo "$RESP" | jq -r '.deployments[0].url // empty')
+
+            if [ "$STATE" = "READY" ]; then
+              echo "url=https://$URL" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$STATE" = "ERROR" ] || [ "$STATE" = "CANCELED" ]; then
+              echo "Vercel deployment failed - skipping Discord notification."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Vercel deployment."
+          exit 1
+
+      # ---- 3. Post to Discord ----
+      - name: Notify Discord
+        if: (steps.detect.outputs.new_books != '' || steps.detect.outputs.updated_books != '') && steps.vercel.outputs.url != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SITE_URL: ${{ steps.vercel.outputs.url }}
+          NEW_BOOKS: ${{ steps.detect.outputs.new_books }}
+          UPDATED_BOOKS: ${{ steps.detect.outputs.updated_books }}
+        run: |
+          send() {
+            curl -s -H "Content-Type: application/json" -X POST \
+              -d "{\"content\": \"$1\"}" \
+              "$DISCORD_WEBHOOK_URL"
+          }
+
+          while IFS= read -r book; do
+            [ -z "$book" ] && continue
+            PRETTY=$(echo "$book" | tr '-' ' ')
+            send "New book added: **${PRETTY}**\n${SITE_URL}"
+          done <<< "$NEW_BOOKS"
+
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            book="${line%%::*}"
+            chapters="${line#*::}"
+            PRETTY=$(echo "$book" | tr '-' ' ')
+            if [ -n "$chapters" ]; then
+              CH_PRETTY=$(echo "$chapters" | tr ',' '|' | sed 's/|/, /g' | tr '-' ' ')
+              send "**${PRETTY}** updated - new/edited: ${CH_PRETTY}\n${SITE_URL}"
+            else
+              send "**${PRETTY}** updated\n${SITE_URL}"
+            fi
+          done <<< "$UPDATED_BOOKS"name: Notify Discord on New Book
 
 on:
   push:
@@ -100,6 +239,6 @@ jobs:
             [ -z "$book" ] && continue
             PRETTY_NAME=$(echo "$book" | tr '-' ' ')
             curl -s -H "Content-Type: application/json" -X POST \
-              -d "{\"content\": \"📚 New book added: **${PRETTY_NAME}**\n${SITE_URL}\"}" \
+              -d "{\"content\": \"New book added: **${PRETTY_NAME}**\n${SITE_URL}\"}" \
               "$DISCORD_WEBHOOK_URL"
           done <<< "${{ steps.detect.outputs.books }}"
