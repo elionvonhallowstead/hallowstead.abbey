@@ -3,9 +3,9 @@
 ---
 
 
-
+- [[Lexicon Magnum/Geography\|Geography]]
 
 
 
 ---
-[[Library Halls\|Previous]]<span style="float: right">~~Next~~</span>
+[[Library Halls\|Previous]]<span style="float: right">[[Lexicon Magnum/Geography\|Next]]</span>
