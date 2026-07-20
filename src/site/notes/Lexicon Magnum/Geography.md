@@ -5,4 +5,4 @@
 
 
 ---
-[[Lexicon Magnum/Lexicon Magnum\|Previous]]<span style="float: right">~~Next~~</span>
+[[Lexicon Magnum/Lexicon Magnum\|Previous]]<span style="float: right">[[Lexicon Magnum/Theology\|Next]]</span>

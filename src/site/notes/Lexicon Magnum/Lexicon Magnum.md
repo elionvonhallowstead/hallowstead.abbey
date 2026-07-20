@@ -4,6 +4,7 @@
 
 
 - [[Lexicon Magnum/Geography\|Geography]]
+- [[Lexicon Magnum/Theology\|Theology]]
 
 
 
