@@ -3,9 +3,9 @@
 ---
 
 
-
+- [[Short Stories/The King of frogs\|The King of frogs]]
 
 
 
 ---
-[[Library Halls\|Previous]]<span style="float: right">~~Next~~</span>
+[[Library Halls\|Previous]]<span style="float: right">[[Short Stories/The King of frogs\|The King of frogs]]</span>
