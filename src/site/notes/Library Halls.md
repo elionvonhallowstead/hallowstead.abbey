@@ -14,7 +14,12 @@ views:
     groupBy:
       property: tags
       direction: ASC
+    order:
+      - file.name
+      - author
     sort:
+      - property: author
+        direction: ASC
       - property: file.name
         direction: ASC
 

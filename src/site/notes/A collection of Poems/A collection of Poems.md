@@ -8,4 +8,4 @@
 
 
 ---
-<span style="float: right">[[A collection of Poems/Winter\|Next]]</span>
+[[Library Halls\|Previous]]<span style="float: right">[[A collection of Poems/Winter\|Next]]</span>
