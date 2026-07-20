@@ -2,6 +2,11 @@
 {"dg-publish":true,"permalink":"/library-halls/","tags":["gardenEntry"],"dg-note-properties":{}}
 ---
 
+<span style="border-radius: 5px; float: right; width: 25%;">![abbey.jpg](/img/user/abbey.jpg)<br>The Abbey of Hallowstead
+</span>
+One can still see the scorch marks etched into the ground.
+Maybe they will stay there forever, a constant reminder of the past,
+never fully invisible
 
 ```base
 filters:
