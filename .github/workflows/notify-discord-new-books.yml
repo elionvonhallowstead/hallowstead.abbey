@@ -11,7 +11,7 @@ jobs:
       - name: Checkout (with history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0   # full history - a shallow depth-2 clone can miss the "before" commit if a push contains several commits
 
       # ---- 1. Did this push add a brand-new top-level folder (= a new book)? ----
       - name: Detect new book folders
@@ -21,21 +21,41 @@ jobs:
         run: |
           set -e
 
+          BEFORE="${{ github.event.before }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+            echo "First-ever push seen by this workflow - falling back to comparing against the parent of HEAD."
+            BEFORE=$(git rev-parse "${{ github.sha }}~1")
+          fi
+
+          echo "::group::Debug info"
+          echo "before: $BEFORE"
+          echo "after:  ${{ github.sha }}"
+          echo "--- raw diff (name-status) under $NOTES_DIR ---"
+          git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" || echo "(git diff failed or produced nothing)"
+          echo "::endgroup::"
+
           # New/added files in this push, restricted to the notes dir
-          ADDED_TOP_DIRS=$(git diff --name-status "${{ github.event.before }}" "${{ github.sha }}" -- "$NOTES_DIR" \
+          ADDED_TOP_DIRS=$(git diff --name-status "$BEFORE" "${{ github.sha }}" -- "$NOTES_DIR" \
             | awk '$1=="A"{print $2}' \
             | sed -E "s|^$NOTES_DIR/||" \
             | awk -F/ 'NF>1{print $1}' \
             | sort -u)
 
+          echo "Added top-level dirs seen in this push: [$ADDED_TOP_DIRS]"
+
           NEW_BOOKS=""
           while IFS= read -r book; do
             [ -z "$book" ] && continue
             # Only count it if that folder did NOT exist before this push
-            if ! git ls-tree -d --name-only "${{ github.event.before }}" -- "$NOTES_DIR/$book" | grep -q .; then
+            if ! git ls-tree -d --name-only "$BEFORE" -- "$NOTES_DIR/$book" | grep -q .; then
+              echo "-> '$book' is NEW (did not exist before this push)"
               NEW_BOOKS="${NEW_BOOKS}${book}"$'\n'
+            else
+              echo "-> '$book' already existed before this push, skipping"
             fi
           done <<< "$ADDED_TOP_DIRS"
+
+          echo "Final books list: [$NEW_BOOKS]"
 
           echo "books<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NEW_BOOKS" >> "$GITHUB_OUTPUT"
