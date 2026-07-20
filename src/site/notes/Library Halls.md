@@ -1,5 +1,5 @@
 ---
-{"dg-publish":true,"permalink":"/library-halls/","tags":["gardenEntry"],"dg-note-properties":{}}
+{"dg-publish":true,"permalink":"/library-halls/","tags":["gardenEntry"],"dg-note-properties":{"cssclasses":["round-corners"]}}
 ---
 
 <span style="float: right; width: 25%; margin-left: 5%;">![abbey.jpg](/img/user/_imgs/abbey.jpg)<br>The Abbey of Hallowstead[^1]
