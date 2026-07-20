@@ -2,7 +2,7 @@
 {"dg-publish":true,"permalink":"/library-halls/","tags":["gardenEntry"],"dg-note-properties":{}}
 ---
 
-<span style="border-radius: 5px; float: right; width: 25%; margin-left: 5%; margin-bottom: 3%">![abbey.jpg](/img/user/abbey.jpg)<br>The Abbey of Hallowstead
+<span style="border-radius: 5px; float: right; width: 25%; margin-left: 5%;">![abbey.jpg](/img/user/abbey.jpg)<br>The Abbey of Hallowstead
 </span>
 > [!summary]
 > One can still see the scorch marks etched into the ground.
