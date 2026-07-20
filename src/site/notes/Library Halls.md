@@ -15,8 +15,9 @@ views:
       property: tags
       direction: ASC
     order:
-      - file.name
+      - file.basename
       - author
+      - tags
     sort:
       - property: author
         direction: ASC
