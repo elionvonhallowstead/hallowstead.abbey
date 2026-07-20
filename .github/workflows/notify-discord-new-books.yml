@@ -39,10 +39,12 @@ jobs:
             | awk '$1=="A" || $1=="M" {print $2}')
 
           # Top-level folder (book) for each changed file
-          TOP_DIRS=$(echo "$CHANGED_FILES" \
-            | sed -E "s|^$NOTES_DIR/||" \
-            | awk -F/ 'NF>1{print $1}' \
-            | sort -u)
+          TOP_DIRS=$(
+            while IFS= read -r file; do
+                file="${file#"$NOTES_DIR/"}"
+                printf '%s\n' "${file%%/*}"
+            done <<< "$CHANGED_FILES" | sort -u
+            )
 
           NEW_BOOKS=""
           UPDATED_BOOKS=""
