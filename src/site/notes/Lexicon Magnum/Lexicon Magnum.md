@@ -3,6 +3,7 @@
 ---
 
 
+- [[Lexicon Magnum/Anthropology\|Anthropology]]
 - [[Lexicon Magnum/Geography\|Geography]]
 - [[Lexicon Magnum/Theology\|Theology]]
 
