@@ -77,40 +77,13 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      # ---- 2. Wait for the matching Vercel deployment to finish ----
-      - name: Wait for Vercel deployment
-        if: steps.detect.outputs.new_books != '' || steps.detect.outputs.updated_books != ''
-        id: vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          SHA="${{ github.sha }}"
-          for i in $(seq 1 30); do
-            RESP=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v7/deployments?projectId=$VERCEL_PROJECT_ID&sha=$SHA&limit=1")
-            STATE=$(echo "$RESP" | jq -r '.deployments[0].readyState // empty')
-            URL=$(echo "$RESP" | jq -r '.deployments[0].url // empty')
-
-            if [ "$STATE" = "READY" ]; then
-              echo "url=https://$URL" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$STATE" = "ERROR" ] || [ "$STATE" = "CANCELED" ]; then
-              echo "Vercel deployment failed - skipping Discord notification."
-              exit 1
-            fi
-            sleep 10
-          done
-          echo "Timed out waiting for Vercel deployment."
-          exit 1
-
-      # ---- 3. Post to Discord ----
+      # ---- 2. Post to Discord ----
       - name: Notify Discord
-        if: (steps.detect.outputs.new_books != '' || steps.detect.outputs.updated_books != '') && steps.vercel.outputs.url != ''
+        if: steps.detect.outputs.new_books != '' || steps.detect.outputs.updated_books != ''
+        
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          SITE_URL: ${{ steps.vercel.outputs.url }}
+          # SITE_URL: https://your-domain.com
           NEW_BOOKS: ${{ steps.detect.outputs.new_books }}
           UPDATED_BOOKS: ${{ steps.detect.outputs.updated_books }}
         run: |
