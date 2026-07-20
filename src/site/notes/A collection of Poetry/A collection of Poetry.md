@@ -1,5 +1,5 @@
 ---
-{"dg-publish":true,"permalink":"/a-collection-of-poetry/a-collection-of-poetry/","tags":["poems"],"dg-note-properties":{"author":"Elion von Hallowstead","tags":["poems"]}}
+{"dg-publish":true,"dg-path":"A collection of Poetry.md","permalink":"/a-collection-of-poetry/","tags":["poems"],"dg-note-properties":{"author":"Elion von Hallowstead","tags":["poems"]}}
 ---
 
 
