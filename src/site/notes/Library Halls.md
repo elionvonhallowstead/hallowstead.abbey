@@ -7,6 +7,7 @@
 filters:
   and:
     - file.name != "Library Halls"
+    - "!file.tags.isEmpty()"
 views:
   - type: cards
     name: Library
@@ -16,4 +17,5 @@ views:
     sort:
       - property: file.name
         direction: ASC
+
 ```
