@@ -231,7 +231,7 @@ function formatCellValue(value, column, row) {
  * Build a group header block for cards/list grouped views.
  */
 function buildGroupHeader(group) {
-	return `<div class="obsidian-base-group-header-block"><span class="obsidian-base-group-label">${escapeHtml(String(group.key || "—"))}</span> <span class="obsidian-base-group-count">${group.rows.length}</span></div>`;
+	return `<div class="obsidian-base-group-header-block"><span class="obsidian-base-group-label">${escapeHtml(String(group.key || "—"))}</span> <span class="obsidian-base-group-count">[${group.rows.length}]</span></div>`;
 }
 
 // --- View renderers ---
