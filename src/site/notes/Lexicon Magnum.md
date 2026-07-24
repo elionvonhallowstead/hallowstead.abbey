@@ -1,5 +1,5 @@
 ---
-{"dg-publish":true,"permalink":"/lexicon-magnum/","tags":["non-fiction"],"dg-note-properties":{"author":"unknown","tags":["non-fiction"]}}
+{"dg-publish":true,"permalink":"/lexicon-magnum/","tags":["non-fiction","poems"],"dg-note-properties":{"author":"unknown","tags":["non-fiction","poems"]}}
 ---
 
 
