@@ -5,8 +5,10 @@
 I've ignored my bodies wails for far too long,
 It screams and wallows, writhing in agony
 I'll sit down and take a seat
+
 The stomach; it growls as loud as bird song
 It yearns for nourishment
+
 I'll indulge my stomach's pleas and eat
 I won't; can't stop without encouragement
 Never sated, only postponed
