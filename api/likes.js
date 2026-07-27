@@ -1,12 +1,21 @@
-const STORAGE_URL = process.env.STORAGE_URL;
+const { list, put } = require("@vercel/blob");
 
 async function readStateFromStorage() {
-  if (!STORAGE_URL) {
-    return {};
-  }
-
   try {
-    const response = await fetch(STORAGE_URL);
+    const { blobs } = await list({
+      prefix: "likes.json",
+    });
+
+    if (!blobs.length) {
+      return {};
+    }
+
+    // Get newest upload
+    blobs.sort(
+      (a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)
+    );
+
+    const response = await fetch(blobs[0].url);
 
     if (!response.ok) {
       return {};
@@ -19,28 +28,30 @@ async function readStateFromStorage() {
     }
 
     const parsed = JSON.parse(text);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
+
+    return parsed && typeof parsed === "object"
+      ? parsed
+      : {};
+  } catch (err) {
+    console.error("Failed reading blob:", err);
     return {};
   }
 }
 
 async function writeStateToStorage(state) {
-  if (!STORAGE_URL) {
-    return false;
-  }
-
   try {
-    await fetch(STORAGE_URL, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(state, null, 2),
-    });
+    await put(
+      "likes.json",
+      JSON.stringify(state, null, 2),
+      {
+        access: "public",
+        allowOverwrite: true,
+      }
+    );
 
     return true;
-  } catch {
+  } catch (err) {
+    console.error("Failed writing blob:", err);
     return false;
   }
 }
@@ -60,7 +71,7 @@ module.exports = async function handler(req, res) {
     if (req.method === "POST") {
       let body = "";
 
-      req.on("data", (chunk) => {
+      req.on("data", chunk => {
         body += chunk;
       });
 
@@ -73,45 +84,50 @@ module.exports = async function handler(req, res) {
             !["like", "unlike"].includes(action)
           ) {
             res.statusCode = 400;
-            res.end(JSON.stringify({ error: "Invalid request" }));
+            res.end(JSON.stringify({
+              error: "Invalid request",
+            }));
             return;
           }
 
           const state = await readStateFromStorage();
 
-          const currentCount = Number(state[noteId]?.count) || 0;
+          const current =
+            Number(state[noteId]?.count) || 0;
 
-          let nextCount = currentCount;
-
-          if (action === "like") {
-            nextCount++;
-          } else {
-            nextCount = Math.max(0, currentCount - 1);
-          }
+          const next =
+            action === "like"
+              ? current + 1
+              : Math.max(0, current - 1);
 
           state[noteId] = {
-            count: nextCount,
+            count: next,
           };
 
-          const saved = await writeStateToStorage(state);
+          const saved =
+            await writeStateToStorage(state);
 
           if (!saved) {
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: "Failed to save likes" }));
+            res.end(JSON.stringify({
+              error: "Failed to save likes",
+            }));
             return;
           }
 
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           res.statusCode = 200;
-          res.end(
-            JSON.stringify({
-              count: nextCount,
-            })
-          );
-        } catch {
+          res.end(JSON.stringify({
+            count: next,
+          }));
+        } catch (err) {
+          console.error(err);
+
           res.statusCode = 400;
-          res.end(JSON.stringify({ error: "Invalid JSON" }));
+          res.end(JSON.stringify({
+            error: "Invalid JSON",
+          }));
         }
       });
 
@@ -119,9 +135,15 @@ module.exports = async function handler(req, res) {
     }
 
     res.statusCode = 405;
-    res.end(JSON.stringify({ error: "Method not allowed" }));
-  } catch {
+    res.end(JSON.stringify({
+      error: "Method not allowed",
+    }));
+  } catch (err) {
+    console.error(err);
+
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: "Server error" }));
+    res.end(JSON.stringify({
+      error: "Server error",
+    }));
   }
 };
