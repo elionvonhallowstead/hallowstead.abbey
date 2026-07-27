@@ -68,12 +68,13 @@ async function writeStateToBlob(state) {
 
   try {
     await blobStore.put(
-      "likes.json",
-      JSON.stringify(state, null, 2),
-      {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      }
+        "likes.json",
+        JSON.stringify(state, null, 2),
+        {
+            access: "public",
+            allowOverwrite: true,
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+        }
     );
 
     return true;
