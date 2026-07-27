@@ -60,16 +60,22 @@ async function writeStateToStorage(state) {
     throw new Error("BLOB_READ_WRITE_TOKEN is missing");
   }
 
-  await put(
+  console.log("Writing state:", JSON.stringify(state));
+
+  const result = await put(
     "likes.json",
     JSON.stringify(state, null, 2),
     {
       access: "public",
       allowOverwrite: true,
-      token: TOKEN,
       addRandomSuffix: false,
+      token: TOKEN,
     }
   );
+
+  console.log("PUT result:", result);
+
+  return true;
 }
 
 module.exports = async function handler(req, res) {
