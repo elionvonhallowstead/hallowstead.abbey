@@ -28,41 +28,48 @@ function writeStateToFile(state) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), "utf8");
 }
 
-module.exports = async function handler(req, res) {
-  if (req.method === "GET") {
-    const state = readStateFromFile();
-    res.setHeader("Content-Type", "application/json");
-    res.statusCode = 200;
-    res.end(JSON.stringify(state));
-    return;
+export default async function handler(req, res) {
+  try {
+    if (req.method === "GET") {
+      const state = readStateFromFile();
+      res.setHeader("Content-Type", "application/json");
+      res.statusCode = 200;
+      res.end(JSON.stringify(state));
+      return;
+    }
+
+    if (req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+
+      req.on("end", () => {
+        try {
+          const incoming = JSON.parse(body || "{}");
+          const current = readStateFromFile();
+          const nextState = {
+            ...current,
+            ...incoming,
+          };
+          writeStateToFile(nextState);
+          res.setHeader("Content-Type", "application/json");
+          res.statusCode = 200;
+          res.end(JSON.stringify(nextState));
+        } catch (error) {
+          console.error("likes api error", error);
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      });
+      return;
+    }
+
+    res.statusCode = 405;
+    res.end(JSON.stringify({ error: "Method not allowed" }));
+  } catch (error) {
+    console.error("likes api fatal error", error);
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: "Server error" }));
   }
-
-  if (req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-
-    req.on("end", () => {
-      try {
-        const incoming = JSON.parse(body || "{}");
-        const current = readStateFromFile();
-        const nextState = {
-          ...current,
-          ...incoming,
-        };
-        writeStateToFile(nextState);
-        res.setHeader("Content-Type", "application/json");
-        res.statusCode = 200;
-        res.end(JSON.stringify(nextState));
-      } catch {
-        res.statusCode = 400;
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-      }
-    });
-    return;
-  }
-
-  res.statusCode = 405;
-  res.end(JSON.stringify({ error: "Method not allowed" }));
-};
+}
