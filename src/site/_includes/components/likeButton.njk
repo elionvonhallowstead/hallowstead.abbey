@@ -51,18 +51,48 @@
 <script>
 (function () {
   const storageKey = "hallowstead.noteLikes";
+  const cookieMaxAge = 60 * 60 * 24 * 365;
   const buttons = document.querySelectorAll(".note-like-button");
 
-  function readState() {
+  function parseState(raw) {
     try {
-      return JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
     } catch {
       return {};
     }
   }
 
+  function readState() {
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (stored) {
+        return parseState(stored);
+      }
+    } catch {
+      // fall through to cookie state
+    }
+
+    const cookie = document.cookie
+      .split(";")
+      .map((entry) => entry.trim())
+      .find((entry) => entry.startsWith(`${storageKey}=`));
+
+    if (!cookie) {
+      return {};
+    }
+
+    return parseState(decodeURIComponent(cookie.slice(storageKey.length + 1)));
+  }
+
   function writeState(state) {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(state));
+    } catch {
+      // ignore storage write failures and rely on cookies
+    }
+
+    document.cookie = `${storageKey}=${encodeURIComponent(JSON.stringify(state))}; Max-Age=${cookieMaxAge}; Path=/; SameSite=Lax`;
   }
 
   function updateButton(button, count, liked) {

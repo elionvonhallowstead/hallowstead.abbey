@@ -1,4 +1,5 @@
 const STORAGE_KEY = "hallowstead.noteLikes";
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 function normalizeNoteId(noteId) {
   return String(noteId || "").trim();
@@ -16,18 +17,12 @@ function getStorage(storage) {
   return null;
 }
 
-function readLikeState(storage) {
-  const resolvedStorage = getStorage(storage);
-  if (!resolvedStorage) {
+function parseStateValue(raw) {
+  if (!raw) {
     return {};
   }
 
   try {
-    const raw = resolvedStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -35,13 +30,55 @@ function readLikeState(storage) {
   }
 }
 
-function writeLikeState(state, storage) {
-  const resolvedStorage = getStorage(storage);
-  if (!resolvedStorage) {
-    return state;
+function readCookieValue(cookieValue) {
+  if (typeof cookieValue === "string") {
+    return cookieValue;
   }
 
-  resolvedStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (typeof globalThis === "undefined" || !globalThis.document || !globalThis.document.cookie) {
+    return "";
+  }
+
+  const cookie = globalThis.document.cookie
+    .split(";")
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${STORAGE_KEY}=`));
+
+  return cookie ? cookie.slice(STORAGE_KEY.length + 1) : "";
+}
+
+function readLikeState(storage, cookieValue) {
+  const resolvedStorage = getStorage(storage);
+  if (resolvedStorage) {
+    try {
+      const raw = resolvedStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        return parseStateValue(raw);
+      }
+    } catch {
+      // fall through to cookie state
+    }
+  }
+
+  const rawCookie = readCookieValue(cookieValue);
+  return parseStateValue(rawCookie ? decodeURIComponent(rawCookie) : rawCookie);
+}
+
+function writeLikeState(state, storage) {
+  const resolvedStorage = getStorage(storage);
+  if (resolvedStorage) {
+    try {
+      resolvedStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // ignore storage write failures and fall back to cookies
+    }
+  }
+
+  if (typeof globalThis !== "undefined" && globalThis.document) {
+    const serialized = encodeURIComponent(JSON.stringify(state));
+    globalThis.document.cookie = `${STORAGE_KEY}=${serialized}; Max-Age=${COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+  }
+
   return state;
 }
 
