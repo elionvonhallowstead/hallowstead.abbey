@@ -64,6 +64,7 @@ async function writeStateToStorage(state) {
     "likes.json",
     JSON.stringify(state, null, 2),
     {
+      access: "private",
       allowOverwrite: true,
       token: TOKEN,
     }
