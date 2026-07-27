@@ -1,5 +1,7 @@
 const { list, put } = require("@vercel/blob");
 
+const BLOB_KEY = "likes.json";
+
 async function readStateFromBlob() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return null;
@@ -7,11 +9,11 @@ async function readStateFromBlob() {
 
   try {
     const { blobs } = await list({
-      prefix: "likes.json",
+      prefix: BLOB_KEY,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
-    const latestBlob = blobs && blobs.find((blob) => blob.pathname === "likes.json");
+    const latestBlob = blobs && blobs.find((blob) => blob.pathname === BLOB_KEY);
     if (!latestBlob || !latestBlob.url) {
       return null;
     }
@@ -30,7 +32,7 @@ async function writeStateToBlob(state) {
   }
 
   try {
-    await put("likes.json", JSON.stringify(state, null, 2), {
+    await put(BLOB_KEY, JSON.stringify(state, null, 2), {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
