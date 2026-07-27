@@ -1,24 +1,12 @@
-const { list, put } = require("@vercel/blob");
-
-const BLOB_KEY = "likes.json";
+const BLOB_URL = process.env.BLOB_URL;
 
 async function readStateFromBlob() {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!BLOB_URL) {
     return null;
   }
 
   try {
-    const { blobs } = await list({
-      prefix: BLOB_KEY,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-
-    const latestBlob = blobs && blobs.find((blob) => blob.pathname === BLOB_KEY);
-    if (!latestBlob || !latestBlob.url) {
-      return null;
-    }
-
-    const response = await fetch(latestBlob.url);
+    const response = await fetch(BLOB_URL);
     const text = await response.text();
     return JSON.parse(text);
   } catch {
@@ -27,14 +15,15 @@ async function readStateFromBlob() {
 }
 
 async function writeStateToBlob(state) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!BLOB_URL) {
     return false;
   }
 
   try {
-    await put(BLOB_KEY, JSON.stringify(state, null, 2), {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+    await fetch(BLOB_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state, null, 2),
     });
     return true;
   } catch {
