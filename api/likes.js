@@ -58,12 +58,28 @@ async function writeStateToStorage(state) {
 
 module.exports = async function handler(req, res) {
   try {
-    if (req.method === "GET" && req.url.includes("?debug")) {
-      return res.end(JSON.stringify({
-        hasBlob: !!process.env.BLOB_READ_WRITE_TOKEN,
-        tokenStart: process.env.BLOB_READ_WRITE_TOKEN?.slice(0, 12),
-        node: process.version,
-      }));
+    if (req.method === "GET" && req.url.includes("debug")) {
+      try {
+        const result = await blobStore.list({
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
+    
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({
+          success: true,
+          blobCount: result.blobs.length,
+          blobs: result.blobs.map(b => b.pathname),
+        }));
+      } catch (err) {
+        res.setHeader("Content-Type", "application/json");
+        res.statusCode = 500;
+        res.end(JSON.stringify({
+          success: false,
+          message: err.message,
+          stack: err.stack,
+        }));
+      }
+      return;
     }
     if (req.method === "GET") {
       const state = await readStateFromStorage();
