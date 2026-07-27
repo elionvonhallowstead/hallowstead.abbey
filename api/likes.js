@@ -56,7 +56,6 @@ async function writeStateToStorage(state) {
     "likes.json",
     JSON.stringify(state, null, 2),
     {
-      access: "public",
       allowOverwrite: true,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     }
