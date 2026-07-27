@@ -1,4 +1,4 @@
-const { list, put, head, download } = require("@vercel/blob");
+const { list, put, head, } = require("@vercel/blob");
 
 function getUrl(req) {
   return new URL(req.url, `https://${req.headers.host || "localhost"}`);
@@ -36,17 +36,18 @@ async function readStateFromStorage() {
     return {};
   }
 
-  // Verify blob exists
-  await head(latest.pathname, {
-    token: TOKEN,
+  const response = await fetch(latest.url, {
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+    },
+    cache: "no-store",
   });
 
-  // Read private blob
-  const blob = await download(latest.pathname, {
-    token: TOKEN,
-  });
+  if (!response.ok) {
+    throw new Error(`Failed to read blob (${response.status})`);
+  }
 
-  const text = await blob.text();
+  const text = await response.text();
 
   if (!text.trim()) {
     return {};
