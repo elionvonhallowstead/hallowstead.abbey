@@ -79,6 +79,7 @@ async function writeStateToBlob(state) {
 
     return true;
   } catch {
+    console.error(err);
     return false;
   }
 }
