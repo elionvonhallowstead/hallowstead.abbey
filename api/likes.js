@@ -78,24 +78,28 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "GET" && url.searchParams.has("debug")) {
       const { blobs } = await list({
-        prefix: "likes.json",
         token: TOKEN,
       });
 
       res.setHeader("Content-Type", "application/json");
 
       res.end(
-        JSON.stringify({
-          success: true,
-          node: process.version,
-          hasToken: !!TOKEN,
-          blobCount: blobs.length,
-          blobs: blobs.map((b) => ({
-            pathname: b.pathname,
-            url: b.url,
-            uploadedAt: b.uploadedAt,
-          })),
-        })
+        JSON.stringify(
+          {
+            success: true,
+            node: process.version,
+            hasToken: !!TOKEN,
+            blobCount: blobs.length,
+            blobs: blobs.map((b) => ({
+              pathname: b.pathname,
+              uploadedAt: b.uploadedAt,
+              size: b.size,
+              url: b.url,
+            })),
+          },
+          null,
+          2
+        )
       );
 
       return;
@@ -138,16 +142,14 @@ module.exports = async function handler(req, res) {
 
           const state = await readStateFromStorage();
 
-          const current = Number(state[noteId]?.count) || 0;
+          const current = Number(state[noteId]) || 0;
 
           const next =
             action === "like"
               ? current + 1
               : Math.max(0, current - 1);
 
-          state[noteId] = {
-            count: next,
-          };
+          state[noteId] = next;
 
           await writeStateToStorage(state);
 
@@ -155,11 +157,7 @@ module.exports = async function handler(req, res) {
           res.setHeader("Cache-Control", "no-store");
 
           res.statusCode = 200;
-          res.end(
-            JSON.stringify({
-              count: next,
-            })
-          );
+          res.end(JSON.stringify(next));
         } catch (err) {
           console.error(err);
 
