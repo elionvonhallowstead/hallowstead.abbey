@@ -81,18 +81,16 @@ module.exports = async function handler(req, res) {
         prefix: "likes.json",
         token: TOKEN,
       });
-
+      
       res.setHeader("Content-Type", "application/json");
-
-      res.end(
-        JSON.stringify({
-          success: true,
-          node: process.version,
-          hasToken: !!TOKEN,
-          blobCount: blobs.length,
-          blobs,
-        })
-      );
+      
+      res.end(JSON.stringify({
+        success: true,
+        node: process.version,
+        hasToken: !!TOKEN,
+        tokenPrefix: TOKEN?.slice(0, 20),
+        tokenLength: TOKEN?.length,
+      }));
 
       return;
     }
