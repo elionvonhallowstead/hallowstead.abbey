@@ -62,24 +62,26 @@ async function readStateFromBlob() {
 }
 
 async function writeStateToBlob(state) {
-  if (!blobStore || !process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!blobStore) {
+    console.error("@vercel/blob is not installed");
+    return false;
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    console.error("BLOB_READ_WRITE_TOKEN is missing");
     return false;
   }
 
   try {
-    await blobStore.put(
-        "likes.json",
-        JSON.stringify(state, null, 2),
-        {
-            access: "public",
-            allowOverwrite: true,
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-        }
-    );
+    await blobStore.put("likes.json", JSON.stringify(state, null, 2), {
+      access: "public",
+      allowOverwrite: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
 
     return true;
-  } catch {
-    console.error(err);
+  } catch (err) {
+    console.error("Blob write failed:", err);
     return false;
   }
 }
