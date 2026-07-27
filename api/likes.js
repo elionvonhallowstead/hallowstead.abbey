@@ -1,12 +1,16 @@
-const { list, put, head, } = require("@vercel/blob");
+const { list, put } = require("@vercel/blob");
+
+const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
 function getUrl(req) {
   return new URL(req.url, `https://${req.headers.host || "localhost"}`);
 }
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-
 async function getLatestBlob() {
+  if (!TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
+  }
+
   const { blobs } = await list({
     prefix: "likes.json",
     token: TOKEN,
@@ -26,10 +30,6 @@ async function getLatestBlob() {
 }
 
 async function readStateFromStorage() {
-  if (!TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
-  }
-
   const latest = await getLatestBlob();
 
   if (!latest) {
@@ -37,14 +37,13 @@ async function readStateFromStorage() {
   }
 
   const response = await fetch(latest.url, {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-    },
     cache: "no-store",
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to read blob (${response.status})`);
+    throw new Error(
+      `Failed reading blob (${response.status})`
+    );
   }
 
   const text = await response.text();
@@ -65,13 +64,12 @@ async function writeStateToStorage(state) {
     "likes.json",
     JSON.stringify(state, null, 2),
     {
-      access: "private",
+      access: "public",
       allowOverwrite: true,
       token: TOKEN,
+      addRandomSuffix: false,
     }
   );
-
-  return true;
 }
 
 module.exports = async function handler(req, res) {
@@ -83,16 +81,22 @@ module.exports = async function handler(req, res) {
         prefix: "likes.json",
         token: TOKEN,
       });
-      
+
       res.setHeader("Content-Type", "application/json");
-      
-      res.end(JSON.stringify({
-        success: true,
-        node: process.version,
-        hasToken: !!TOKEN,
-        tokenPrefix: TOKEN?.slice(0, 20),
-        tokenLength: TOKEN?.length,
-      }));
+
+      res.end(
+        JSON.stringify({
+          success: true,
+          node: process.version,
+          hasToken: !!TOKEN,
+          blobCount: blobs.length,
+          blobs: blobs.map((b) => ({
+            pathname: b.pathname,
+            url: b.url,
+            uploadedAt: b.uploadedAt,
+          })),
+        })
+      );
 
       return;
     }
@@ -105,14 +109,13 @@ module.exports = async function handler(req, res) {
 
       res.statusCode = 200;
       res.end(JSON.stringify(state));
-
       return;
     }
 
     if (req.method === "POST") {
       let body = "";
 
-      req.on("data", chunk => {
+      req.on("data", (chunk) => {
         body += chunk;
       });
 
@@ -125,9 +128,11 @@ module.exports = async function handler(req, res) {
             !["like", "unlike"].includes(action)
           ) {
             res.statusCode = 400;
-            res.end(JSON.stringify({
-              error: "Invalid request",
-            }));
+            res.end(
+              JSON.stringify({
+                error: "Invalid request",
+              })
+            );
             return;
           }
 
@@ -135,11 +140,13 @@ module.exports = async function handler(req, res) {
 
           const current = Number(state[noteId]?.count) || 0;
 
+          const next =
+            action === "like"
+              ? current + 1
+              : Math.max(0, current - 1);
+
           state[noteId] = {
-            count:
-              action === "like"
-                ? current + 1
-                : Math.max(0, current - 1),
+            count: next,
           };
 
           await writeStateToStorage(state);
@@ -148,19 +155,25 @@ module.exports = async function handler(req, res) {
           res.setHeader("Cache-Control", "no-store");
 
           res.statusCode = 200;
-          res.end(JSON.stringify(state[noteId]));
+          res.end(
+            JSON.stringify({
+              count: next,
+            })
+          );
         } catch (err) {
           console.error(err);
 
           res.statusCode = 500;
           res.setHeader("Content-Type", "application/json");
 
-          res.end(JSON.stringify({
-            success: false,
-            name: err.name,
-            message: err.message,
-            stack: err.stack,
-          }));
+          res.end(
+            JSON.stringify({
+              success: false,
+              name: err.name,
+              message: err.message,
+              stack: err.stack,
+            })
+          );
         }
       });
 
@@ -168,21 +181,26 @@ module.exports = async function handler(req, res) {
     }
 
     res.statusCode = 405;
+    res.setHeader("Content-Type", "application/json");
 
-    res.end(JSON.stringify({
-      error: "Method not allowed",
-    }));
+    res.end(
+      JSON.stringify({
+        error: "Method not allowed",
+      })
+    );
   } catch (err) {
     console.error(err);
 
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
 
-    res.end(JSON.stringify({
-      success: false,
-      name: err.name,
-      message: err.message,
-      stack: err.stack,
-    }));
+    res.end(
+      JSON.stringify({
+        success: false,
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+      })
+    );
   }
 };
