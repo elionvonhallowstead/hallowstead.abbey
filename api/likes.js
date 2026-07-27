@@ -223,7 +223,7 @@ module.exports = async function handler(req, res) {
       })
     );
   }
-};const { list, put } = require("@vercel/blob");
+};
 
 async function readStateFromStorage() {
   try {
