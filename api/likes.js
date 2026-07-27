@@ -44,28 +44,47 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "POST") {
       let body = "";
+    
       req.on("data", (chunk) => {
         body += chunk;
       });
-
+    
       req.on("end", async () => {
         try {
-          const incoming = JSON.parse(body || "{}");
-          const current = await readStateFromStorage();
-          const nextState = {
-            ...current,
-            ...incoming,
-          };
-          await writeStateToStorage(nextState);
+          const { noteId, action } = JSON.parse(body || "{}");
+    
+          if (!noteId || !["like", "unlike"].includes(action)) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({ error: "Invalid request" }));
+          }
+    
+          const state = await readStateFromStorage();
+    
+          if (!state[noteId]) {
+            state[noteId] = { count: 0 };
+          }
+    
+          if (action === "like") {
+            state[noteId].count++;
+          } else {
+            state[noteId].count = Math.max(0, state[noteId].count - 1);
+          }
+    
+          await writeStateToStorage(state);
+    
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           res.statusCode = 200;
-          res.end(JSON.stringify(nextState));
-        } catch (error) {
+          res.end(JSON.stringify({
+            count: state[noteId].count
+          }));
+    
+        } catch {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: "Invalid JSON" }));
         }
       });
+    
       return;
     }
 
