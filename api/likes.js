@@ -1,26 +1,26 @@
-const BLOB_URL = process.env.BLOB_URL;
+const STORAGE_URL = process.env.STORAGE_URL;
 
-async function readStateFromBlob() {
-  if (!BLOB_URL) {
-    return null;
+async function readStateFromStorage() {
+  if (!STORAGE_URL) {
+    return {};
   }
 
   try {
-    const response = await fetch(BLOB_URL);
+    const response = await fetch(STORAGE_URL);
     const text = await response.text();
     return JSON.parse(text);
   } catch {
-    return null;
+    return {};
   }
 }
 
-async function writeStateToBlob(state) {
-  if (!BLOB_URL) {
+async function writeStateToStorage(state) {
+  if (!STORAGE_URL) {
     return false;
   }
 
   try {
-    await fetch(BLOB_URL, {
+    await fetch(STORAGE_URL, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(state, null, 2),
@@ -34,11 +34,11 @@ async function writeStateToBlob(state) {
 module.exports = async function handler(req, res) {
   try {
     if (req.method === "GET") {
-      const state = await readStateFromBlob();
+      const state = await readStateFromStorage();
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-store");
       res.statusCode = 200;
-      res.end(JSON.stringify(state || {}));
+      res.end(JSON.stringify(state));
       return;
     }
 
@@ -51,12 +51,12 @@ module.exports = async function handler(req, res) {
       req.on("end", async () => {
         try {
           const incoming = JSON.parse(body || "{}");
-          const current = (await readStateFromBlob()) || {};
+          const current = await readStateFromStorage();
           const nextState = {
             ...current,
             ...incoming,
           };
-          await writeStateToBlob(nextState);
+          await writeStateToStorage(nextState);
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           res.statusCode = 200;
