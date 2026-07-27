@@ -7,8 +7,19 @@ async function readStateFromStorage() {
 
   try {
     const response = await fetch(STORAGE_URL);
+
+    if (!response.ok) {
+      return {};
+    }
+
     const text = await response.text();
-    return JSON.parse(text);
+
+    if (!text.trim()) {
+      return {};
+    }
+
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
@@ -22,9 +33,12 @@ async function writeStateToStorage(state) {
   try {
     await fetch(STORAGE_URL, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(state, null, 2),
     });
+
     return true;
   } catch {
     return false;
@@ -35,6 +49,7 @@ module.exports = async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const state = await readStateFromStorage();
+
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-store");
       res.statusCode = 200;
@@ -44,53 +59,68 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "POST") {
       let body = "";
-    
+
       req.on("data", (chunk) => {
         body += chunk;
       });
-    
+
       req.on("end", async () => {
         try {
           const { noteId, action } = JSON.parse(body || "{}");
-    
-          if (!noteId || !["like", "unlike"].includes(action)) {
+
+          if (
+            typeof noteId !== "string" ||
+            !["like", "unlike"].includes(action)
+          ) {
             res.statusCode = 400;
-            return res.end(JSON.stringify({ error: "Invalid request" }));
+            res.end(JSON.stringify({ error: "Invalid request" }));
+            return;
           }
-    
+
           const state = await readStateFromStorage();
-    
-          if (!state[noteId]) {
-            state[noteId] = { count: 0 };
-          }
-    
+
+          const currentCount = Number(state[noteId]?.count) || 0;
+
+          let nextCount = currentCount;
+
           if (action === "like") {
-            state[noteId].count++;
+            nextCount++;
           } else {
-            state[noteId].count = Math.max(0, state[noteId].count - 1);
+            nextCount = Math.max(0, currentCount - 1);
           }
-    
-          await writeStateToStorage(state);
-    
+
+          state[noteId] = {
+            count: nextCount,
+          };
+
+          const saved = await writeStateToStorage(state);
+
+          if (!saved) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: "Failed to save likes" }));
+            return;
+          }
+
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
           res.statusCode = 200;
-          res.end(JSON.stringify({
-            count: state[noteId].count
-          }));
-    
+          res.end(
+            JSON.stringify({
+              count: nextCount,
+            })
+          );
         } catch {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: "Invalid JSON" }));
         }
       });
-    
+
       return;
     }
 
     res.statusCode = 405;
     res.end(JSON.stringify({ error: "Method not allowed" }));
-  } catch (error) {
+  } catch {
     res.statusCode = 500;
     res.end(JSON.stringify({ error: "Server error" }));
   }
