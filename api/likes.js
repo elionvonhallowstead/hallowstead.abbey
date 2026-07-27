@@ -4,15 +4,17 @@ async function readStateFromStorage() {
   try {
     const { blobs } = await list({
       prefix: "likes.json",
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
     if (!blobs.length) {
       return {};
     }
 
-    // Get newest upload
     blobs.sort(
-      (a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt)
+      (a, b) =>
+        new Date(b.uploadedAt || 0) -
+        new Date(a.uploadedAt || 0)
     );
 
     const response = await fetch(blobs[0].url);
@@ -46,33 +48,40 @@ async function writeStateToStorage(state) {
       {
         access: "public",
         allowOverwrite: true,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
       }
     );
 
     return true;
   } catch (err) {
     console.error("Failed writing blob:", err);
-    return false;
+    throw err;
   }
 }
 
 module.exports = async function handler(req, res) {
   try {
+    // Temporary debug endpoint
     if (req.method === "GET" && req.url.includes("debug")) {
       try {
-        const result = await blobStore.list({
+        const result = await list({
+          prefix: "likes.json",
           token: process.env.BLOB_READ_WRITE_TOKEN,
         });
-    
+
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({
           success: true,
+          hasToken: !!process.env.BLOB_READ_WRITE_TOKEN,
           blobCount: result.blobs.length,
-          blobs: result.blobs.map(b => b.pathname),
+          blobs: result.blobs.map(b => ({
+            pathname: b.pathname,
+            uploadedAt: b.uploadedAt,
+          })),
         }));
       } catch (err) {
-        res.setHeader("Content-Type", "application/json");
         res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({
           success: false,
           message: err.message,
@@ -81,6 +90,7 @@ module.exports = async function handler(req, res) {
       }
       return;
     }
+
     if (req.method === "GET") {
       const state = await readStateFromStorage();
 
@@ -115,8 +125,7 @@ module.exports = async function handler(req, res) {
 
           const state = await readStateFromStorage();
 
-          const current =
-            Number(state[noteId]?.count) || 0;
+          const current = Number(state[noteId]?.count) || 0;
 
           const next =
             action === "like"
@@ -127,16 +136,7 @@ module.exports = async function handler(req, res) {
             count: next,
           };
 
-          const saved =
-            await writeStateToStorage(state);
-
-          if (!saved) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({
-              error: "Failed to save likes",
-            }));
-            return;
-          }
+          await writeStateToStorage(state);
 
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
@@ -147,9 +147,9 @@ module.exports = async function handler(req, res) {
         } catch (err) {
           console.error(err);
 
-          res.statusCode = 400;
+          res.statusCode = 500;
           res.end(JSON.stringify({
-            error: "Invalid JSON",
+            error: err.message,
           }));
         }
       });
@@ -166,7 +166,7 @@ module.exports = async function handler(req, res) {
 
     res.statusCode = 500;
     res.end(JSON.stringify({
-      error: "Server error",
+      error: err.message,
     }));
   }
 };
