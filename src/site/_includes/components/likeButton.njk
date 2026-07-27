@@ -128,7 +128,14 @@
   async function updateButtonState(button, noteId) {
     const state = await loadFromServer();
     const entry = state[noteId] || { count: 0, liked: false };
-    updateButton(button, entry.count, entry.liked);
+    const localState = readState();
+    const mergedState = {
+      ...localState,
+      ...state,
+    };
+    const mergedEntry = mergedState[noteId] || entry;
+    writeState(mergedState);
+    updateButton(button, mergedEntry.count, mergedEntry.liked);
   }
 
   function updateButton(button, count, liked) {
