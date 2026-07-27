@@ -82,6 +82,16 @@ function writeLikeState(state, storage) {
   return state;
 }
 
+function mergeLikeState(baseState, incomingState) {
+  const currentState = baseState && typeof baseState === "object" ? baseState : {};
+  const nextState = incomingState && typeof incomingState === "object" ? incomingState : {};
+
+  return {
+    ...currentState,
+    ...nextState,
+  };
+}
+
 function getLikeSummary(noteId, storage) {
   const normalizedNoteId = normalizeNoteId(noteId);
   if (!normalizedNoteId) {
@@ -119,6 +129,7 @@ function toggleLike(noteId, storage) {
 module.exports = {
   STORAGE_KEY,
   getLikeSummary,
+  mergeLikeState,
   toggleLike,
   readLikeState,
   writeLikeState,

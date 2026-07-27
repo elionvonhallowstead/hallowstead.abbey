@@ -54,4 +54,16 @@ describe("likeUtils", () => {
       "book-1": { count: 2, liked: true },
     });
   });
+
+  it("merges an incoming like state with the current state", () => {
+    const merged = likeUtils.mergeLikeState(
+      { "book-1": { count: 1, liked: true } },
+      { "book-2": { count: 3, liked: true } },
+    );
+
+    expect(merged).toEqual({
+      "book-1": { count: 1, liked: true },
+      "book-2": { count: 3, liked: true },
+    });
+  });
 });
