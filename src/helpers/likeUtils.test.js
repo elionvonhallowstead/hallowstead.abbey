@@ -43,4 +43,15 @@ describe("likeUtils", () => {
       liked: false,
     });
   });
+
+  it("reads a cookie-backed state when storage is empty", () => {
+    const storage = makeStorage();
+    const cookieValue = encodeURIComponent(JSON.stringify({
+      "book-1": { count: 2, liked: true },
+    }));
+
+    expect(likeUtils.readLikeState(storage, cookieValue)).toEqual({
+      "book-1": { count: 2, liked: true },
+    });
+  });
 });
