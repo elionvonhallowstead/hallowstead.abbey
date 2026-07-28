@@ -37,17 +37,19 @@
 
 .note-like-toggle {
   appearance: none;
-  border: 1px solid currentColor;
+  border: none;
   background: transparent;
   color: inherit;
   cursor: pointer;
   border-radius: 999px;
-  padding: .45rem .9rem;
+  padding: .45rem .8rem;
   font: inherit;
+
   display: inline-flex;
   align-items: center;
   gap: .4rem;
-  transition: .15s;
+
+  transition: opacity .15s;
 }
 
 .note-like-toggle:hover {
@@ -55,7 +57,7 @@
 }
 
 .note-like-button[data-liked="true"] .note-like-toggle {
-  color: #d33;
+  color: rgb(209.304, 137.496, 137.496);
 }
 
 .note-like-count {
