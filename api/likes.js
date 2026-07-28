@@ -13,7 +13,7 @@ async function readJson(req) {
 module.exports = async function handler(req, res) {
   try {
     const client = await clientPromise;
-    const db = client.db("library-reviews");
+    const db = client.db("library_reviews");
     const likes = db.collection("likes");
 
     if (req.method === "GET") {
