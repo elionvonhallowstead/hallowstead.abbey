@@ -29,7 +29,17 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
     <main class="content cm-s-obsidian print {{contentClasses}}">
       <header>
         {% if settings.dgShowInlineTitle === true %}
-          <h1 data-note-icon="{% if noteIcon %}{{noteIcon}}{% else %}{{meta.noteIconsSettings.default}}{% endif %}">{% if title %}{{ title }}{% else %}{{ page.fileSlug }}{% endif %}</h1>
+        <div class="note-header">
+          <h1 class="note-title" data-note-icon="{% if noteIcon %}{{ noteIcon }}{% else %}{{ meta.noteIconsSettings.default }}{% endif %}">
+            {% if title %}
+              {{ title }}
+            {% else %}
+              {{ page.fileSlug }}
+            {% endif %}
+          </h1>
+        
+          {% include "components/likeButton.njk" %}
+        </div>
         {% endif %}
         <div class="header-meta">
           {% if settings.dgShowTags === true and tags %}
