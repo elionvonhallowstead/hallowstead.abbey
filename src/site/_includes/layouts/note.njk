@@ -77,7 +77,7 @@ permalink: "notes/{{ page.fileSlug | slugify }}/"
       {% for imp in dynamics.notes.beforeContent %}
         {% include imp %}
       {% endfor %}
-      {% include "components/likeButton.njk" %}
+      /*{% include "components/likeButton.njk" %}*/
       {{ content | hideDataview | taggify | link | safe}}
       {% for imp in dynamics.common.afterContent %}
         {% include imp %}
