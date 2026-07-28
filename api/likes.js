@@ -48,7 +48,9 @@ async function writeStateToStorage(state) {
     throw new Error("BLOB_READ_WRITE_TOKEN is missing");
   }
 
-  await put(
+  console.log("Uploading:", JSON.stringify(state));
+
+  const result = await put(
     "likes.json",
     JSON.stringify(state, null, 2),
     {
@@ -58,6 +60,17 @@ async function writeStateToStorage(state) {
       token: TOKEN,
     }
   );
+
+  const verify = await fetch(result.url, {
+    cache: "no-store",
+  });
+
+  const uploaded = await verify.text();
+
+  console.log("Blob now contains:");
+  console.log(uploaded);
+
+  return true;
 }
 
 module.exports = async function handler(req, res) {
