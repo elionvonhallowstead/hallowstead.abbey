@@ -1,3 +1,65 @@
+const { list, put } = require("@vercel/blob");
+
+const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+
+function getUrl(req) {
+  return new URL(req.url, `https://${req.headers.host || "localhost"}`);
+}
+
+async function readStateFromStorage() {
+  if (!TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
+  }
+
+  const { blobs } = await list({
+    prefix: "likes.json",
+    token: TOKEN,
+  });
+
+  if (!blobs.length) {
+    return {};
+  }
+
+  blobs.sort(
+    (a, b) =>
+      new Date(b.uploadedAt || 0) -
+      new Date(a.uploadedAt || 0)
+  );
+
+  const response = await fetch(blobs[0].url, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed reading blob (${response.status})`);
+  }
+
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return {};
+  }
+
+  return JSON.parse(text);
+}
+
+async function writeStateToStorage(state) {
+  if (!TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
+  }
+
+  await put(
+    "likes.json",
+    JSON.stringify(state, null, 2),
+    {
+      access: "public",
+      allowOverwrite: true,
+      addRandomSuffix: false,
+      token: TOKEN,
+    }
+  );
+}
+
 module.exports = async function handler(req, res) {
   try {
     const url = getUrl(req);
@@ -30,18 +92,18 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Read all likes
+    // GET
     if (req.method === "GET") {
       const state = await readStateFromStorage();
 
+      res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-store");
-      res.statusCode = 200;
       res.end(JSON.stringify(state));
       return;
     }
 
-    // Update likes
+    // POST
     if (req.method === "POST") {
       let body = "";
 
@@ -58,22 +120,13 @@ module.exports = async function handler(req, res) {
             !["like", "unlike"].includes(action)
           ) {
             res.statusCode = 400;
-            res.setHeader("Content-Type", "application/json");
             res.end(JSON.stringify({ error: "Invalid request" }));
             return;
           }
 
           const state = await readStateFromStorage();
 
-          console.log("State before:", JSON.stringify(state));
-
           const current = Number(state[noteId]) || 0;
-
-          console.log({
-            noteId,
-            action,
-            current,
-          });
 
           const next =
             action === "like"
@@ -82,13 +135,11 @@ module.exports = async function handler(req, res) {
 
           state[noteId] = next;
 
-          console.log("State after:", JSON.stringify(state));
-
           await writeStateToStorage(state);
 
+          res.statusCode = 200;
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
-          res.statusCode = 200;
           res.end(JSON.stringify({ count: next }));
         } catch (err) {
           console.error(err);
