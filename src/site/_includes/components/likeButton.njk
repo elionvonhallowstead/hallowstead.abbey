@@ -1,4 +1,6 @@
-{% set noteId = page.filePathStem | replace('/notes/', '') %}
+{% set pathParts = page.filePathStem | replace('/notes/', '') | split('/') %}
+{% set noteId = pathParts | first %}
+
 {% if noteId %}
 
 <div
@@ -151,7 +153,6 @@ async function sendLike(noteId, action) {
 }
 
 function render(button, count, liked) {
-
   button.dataset.liked = liked;
 
   button.querySelector(".note-like-icon").textContent =
@@ -171,14 +172,12 @@ buttons.forEach(async button => {
   const toggle =
     button.querySelector(".note-like-toggle");
 
-  const local = readLocal();
-
-  let liked = !!local[noteId];
+  let state = readLocal();
+  let liked = !!state[noteId];
 
   try {
 
     const likes = await fetchLikes();
-
     const count = Number(likes[noteId] || 0);
 
     render(button, count, liked);
@@ -189,12 +188,20 @@ buttons.forEach(async button => {
 
   }
 
+  window.addEventListener("storage", () => {
+    state = readLocal();
+    liked = !!state[noteId];
+    const currentCount = Number(
+      button.querySelector(".note-like-count").textContent.split(" ")[0]
+    ) || 0;
+    render(button, currentCount, liked);
+  });
+
   toggle.addEventListener("click", async () => {
 
     toggle.disabled = true;
 
-    const state = readLocal();
-
+    state = readLocal();
     liked = !!state[noteId];
 
     if (liked)
@@ -227,6 +234,12 @@ buttons.forEach(async button => {
         delete state[noteId];
 
       writeLocal(state);
+
+      render(
+        button,
+        Number(button.querySelector(".note-like-count").textContent.split(" ")[0]) || 0,
+        liked
+      );
 
     }
 
