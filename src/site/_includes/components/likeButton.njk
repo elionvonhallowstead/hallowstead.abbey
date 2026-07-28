@@ -40,8 +40,7 @@
   align-items: center;
   gap: .5rem;
 
-  padding: calc(var(--tag-padding-y) * 8em)
-         calc(var(--tag-padding-x) * 8em);
+  padding: .5em 1.2em;
 
   background: var(--tag-background);
   border: var(--tag-border-width) solid var(--tag-border-color);
@@ -64,6 +63,7 @@
 .note-like-toggle {
   appearance: none;
   background: transparent;
+  background-color: argb(0, 0, 0, 0);
   border: none;
   padding: 0;
 
@@ -80,11 +80,9 @@
 }
 
 .note-like-toggle:hover {
-  color: var(--tag-color-hover);
   text-decoration: var(--tag-decoration-hover);
 }
 
-/* Keep the liked colour exactly as before */
 .note-like-button[data-liked="true"] .note-like-toggle {
   color: rgb(209.304, 137.496, 137.496);
 }
