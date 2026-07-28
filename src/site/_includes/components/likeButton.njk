@@ -192,7 +192,7 @@
       if (result) {
         updateButton(
           button,
-          Number(result.count) || 0,
+          result.count || 0,
           !liked
         );
       } else {
