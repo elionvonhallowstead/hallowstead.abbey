@@ -1,165 +1,230 @@
+{% set noteId = page.filePathStem | replace('/notes/', '') %}
+{% if noteId %}
+
+<div
+  class="note-like-button"
+  data-note-id="{{ noteId }}"
+  data-liked="false"
+>
+  <button
+    type="button"
+    class="note-like-toggle"
+    aria-label="Like this note"
+  >
+    <span class="note-like-icon">♡</span>
+    <span class="note-like-label">Like</span>
+  </button>
+
+  <span class="note-like-count">
+    0 likes
+  </span>
+</div>
+
+<style>
+.note-like-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 1rem 0;
+}
+
+.note-like-toggle {
+  appearance: none;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: .45rem .9rem;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  transition: .15s;
+}
+
+.note-like-toggle:hover {
+  opacity: .8;
+}
+
+.note-like-button[data-liked="true"] .note-like-toggle {
+  color: #d33;
+}
+
+.note-like-count {
+  opacity: .75;
+}
+</style>
+
 <script>
-(function () {
-  const storageKey = "hallowstead.noteLikes";
-  const cookieMaxAge = 60 * 60 * 24 * 365;
-  const buttons = document.querySelectorAll(".note-like-button");
+(() => {
 
-  function parseState(raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
+const STORAGE_KEY = "hallowstead.noteLikes";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
-  function readState() {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        return parseState(stored);
-      }
-    } catch {}
+const buttons = document.querySelectorAll(".note-like-button");
 
-    const cookie = document.cookie
-      .split(";")
-      .map(c => c.trim())
-      .find(c => c.startsWith(storageKey + "="));
+if (!buttons.length) return;
 
-    if (cookie) {
-      return parseState(
-        decodeURIComponent(cookie.slice(storageKey.length + 1))
-      );
-    }
-
+function parse(raw) {
+  try {
+    return JSON.parse(raw) || {};
+  } catch {
     return {};
   }
+}
 
-  function writeState(state) {
+function readLocal() {
+  try {
+    const value = localStorage.getItem(STORAGE_KEY);
+    if (value) return parse(value);
+  } catch {}
+
+  const cookie = document.cookie
+    .split(";")
+    .map(v => v.trim())
+    .find(v => v.startsWith(STORAGE_KEY + "="));
+
+  if (!cookie) return {};
+
+  return parse(
+    decodeURIComponent(cookie.slice(STORAGE_KEY.length + 1))
+  );
+}
+
+function writeLocal(state) {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(state)
+    );
+  } catch {}
+
+  document.cookie =
+    STORAGE_KEY +
+    "=" +
+    encodeURIComponent(JSON.stringify(state)) +
+    "; Max-Age=" +
+    COOKIE_MAX_AGE +
+    "; Path=/; SameSite=Lax";
+}
+
+async function fetchLikes() {
+  const res = await fetch("/api/likes", {
+    cache: "no-store"
+  });
+
+  if (!res.ok)
+    throw new Error("Failed loading likes");
+
+  return res.json();
+}
+
+async function sendLike(noteId, action) {
+  const res = await fetch("/api/likes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      noteId,
+      action
+    })
+  });
+
+  if (!res.ok)
+    throw new Error("Failed updating like");
+
+  return res.json();
+}
+
+function render(button, count, liked) {
+
+  button.dataset.liked = liked;
+
+  button.querySelector(".note-like-icon").textContent =
+    liked ? "♥" : "♡";
+
+  button.querySelector(".note-like-label").textContent =
+    liked ? "Liked" : "Like";
+
+  button.querySelector(".note-like-count").textContent =
+    `${count} ${count === 1 ? "like" : "likes"}`;
+}
+
+buttons.forEach(async button => {
+
+  const noteId = button.dataset.noteId;
+
+  const toggle =
+    button.querySelector(".note-like-toggle");
+
+  const local = readLocal();
+
+  let liked = !!local[noteId];
+
+  try {
+
+    const likes = await fetchLikes();
+
+    const count = Number(likes[noteId] || 0);
+
+    render(button, count, liked);
+
+  } catch {
+
+    render(button, 0, liked);
+
+  }
+
+  toggle.addEventListener("click", async () => {
+
+    toggle.disabled = true;
+
+    const state = readLocal();
+
+    liked = !!state[noteId];
+
+    if (liked)
+      delete state[noteId];
+    else
+      state[noteId] = true;
+
+    writeLocal(state);
+
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state));
-    } catch {}
 
-    document.cookie =
-      storageKey +
-      "=" +
-      encodeURIComponent(JSON.stringify(state)) +
-      "; Max-Age=" +
-      cookieMaxAge +
-      "; Path=/; SameSite=Lax";
-  }
-
-  async function loadFromServer() {
-    try {
-      const response = await fetch("/api/likes", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        return {};
-      }
-
-      return await response.json();
-    } catch {
-      return {};
-    }
-  }
-
-  async function syncWithServer(noteId, action) {
-    try {
-      const response = await fetch("/api/likes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          noteId,
-          action,
-        }),
-      });
-
-      if (!response.ok) {
-        return null;
-      }
-
-      return await response.json();
-    } catch {
-      return null;
-    }
-  }
-
-  function updateButton(button, count, liked) {
-    button.dataset.liked = liked;
-
-    button.querySelector(".note-like-icon").textContent =
-      liked ? "♥" : "♡";
-
-    button.querySelector(".note-like-label").textContent =
-      liked ? "Liked" : "Like";
-
-    button.querySelector(".note-like-count").textContent =
-      `${count} ${count === 1 ? "like" : "likes"}`;
-  }
-
-  async function refresh(button) {
-    const noteId = button.dataset.noteId;
-
-    const localState = readState();
-    const liked = !!localState[noteId];
-
-    const serverState = await loadFromServer();
-
-    const count = Number(serverState[noteId]) || 0;
-
-    updateButton(button, count, liked);
-  }
-
-  buttons.forEach(button => {
-    refresh(button);
-
-    const toggle = button.querySelector(".note-like-toggle");
-
-    toggle.addEventListener("click", async () => {
-      toggle.disabled = true;
-
-      const noteId = button.dataset.noteId;
-
-      const localState = readState();
-      const liked = !!localState[noteId];
-
-      if (liked) {
-        delete localState[noteId];
-      } else {
-        localState[noteId] = true;
-      }
-
-      writeState(localState);
-
-      const result = await syncWithServer(
+      const result = await sendLike(
         noteId,
         liked ? "unlike" : "like"
       );
 
-      if (result) {
-        updateButton(
-          button,
-          result.count,
-          !liked
-        );
-      } else {
-        if (liked) {
-          localState[noteId] = true;
-        } else {
-          delete localState[noteId];
-        }
+      render(
+        button,
+        result.count,
+        !liked
+      );
 
-        writeState(localState);
+    } catch (err) {
 
-        await refresh(button);
-      }
+      console.error(err);
 
-      toggle.disabled = false;
-    });
+      if (liked)
+        state[noteId] = true;
+      else
+        delete state[noteId];
+
+      writeLocal(state);
+
+    }
+
+    toggle.disabled = false;
+
   });
+
+});
+
 })();
 </script>
+
+{% endif %}
