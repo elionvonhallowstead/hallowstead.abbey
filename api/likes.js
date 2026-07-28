@@ -47,8 +47,6 @@ async function readStateFromStorage() {
 }
 
 async function writeStateToStorage(state) {
-  throw new Error("WRITE FUNCTION REACHED");
-}/*
   if (!TOKEN) {
     throw new Error("BLOB_READ_WRITE_TOKEN is missing");
   }
@@ -76,7 +74,7 @@ async function writeStateToStorage(state) {
   console.log(uploaded);
 
   return true;
-}*/
+}
 
 module.exports = async function handler(req, res) {
   try {
