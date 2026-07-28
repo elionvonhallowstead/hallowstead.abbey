@@ -11,12 +11,20 @@ module.exports = {
       }
       return "layouts/note.njk";
     },
+
     permalink: (data) => {
       if (data.tags.indexOf("gardenEntry") != -1) {
         return "/";
       }
       return data.permalink || undefined;
     },
+
+    // NEW: Use the top-level note folder (or file name) as the canonical book ID.
+    bookId: (data) => {
+      const stem = data.page.filePathStem.replace("/notes/", "");
+      return stem.split("/")[0];
+    },
+
     basesNotes: (data) => {
       if (!data.collections || !data.collections.note) return [];
       return data.collections.note.map((item) => ({
@@ -26,6 +34,7 @@ module.exports = {
         fileSlug: item.fileSlug,
       }));
     },
+
     settings: (data) => {
       const noteSettings = {};
       allSettings.forEach((setting) => {
