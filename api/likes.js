@@ -148,6 +148,8 @@ module.exports = async function handler(req, res) {
 
           state[noteId] = next;
 
+          console.log("State about to upload:", JSON.stringify(state));
+
           await writeStateToStorage(state);
 
           res.statusCode = 200;

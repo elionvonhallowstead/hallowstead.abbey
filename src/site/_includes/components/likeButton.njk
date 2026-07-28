@@ -158,7 +158,7 @@
 
     const liked = !!localState[noteId];
 
-    const count = Number(serverState[noteId]?.count) || 0;
+    const count = Number(serverState[noteId]) || 0;
 
     updateButton(button, count, liked);
   }
@@ -192,7 +192,7 @@
       if (result) {
         updateButton(
           button,
-          result.count,
+          Number(result),
           !liked
         );
       } else {
