@@ -1,200 +1,92 @@
-const { list, put } = require("@vercel/blob");
+const clientPromise = require("./mongodb");
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+async function readJson(req) {
+  const chunks = [];
 
-function getUrl(req) {
-  return new URL(req.url, `https://${req.headers.host || "localhost"}`);
-}
-
-async function readStateFromStorage() {
-  if (!TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
+  for await (const chunk of req) {
+    chunks.push(chunk);
   }
 
-  const { blobs } = await list({
-    prefix: "likes.json",
-    token: TOKEN,
-  });
-
-  if (!blobs.length) {
-    return {};
-  }
-
-  blobs.sort(
-    (a, b) =>
-      new Date(b.uploadedAt || 0) -
-      new Date(a.uploadedAt || 0)
-  );
-
-  const response = await fetch(blobs[0].url, {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed reading blob (${response.status})`);
-  }
-
-  const text = await response.text();
-
-  if (!text.trim()) {
-    return {};
-  }
-
-  return JSON.parse(text);
-}
-
-async function writeStateToStorage(state) {
-  if (!TOKEN) {
-    throw new Error("BLOB_READ_WRITE_TOKEN is missing");
-  }
-
-  console.log("Uploading:", JSON.stringify(state));
-
-  const result = await put(
-    "likes.json",
-    JSON.stringify(state, null, 2),
-    {
-      access: "public",
-      allowOverwrite: true,
-      addRandomSuffix: false,
-      token: TOKEN,
-    }
-  );
-
-  const verify = await fetch(result.url, {
-    cache: "no-store",
-  });
-
-  const uploaded = await verify.text();
-
-  console.log("Blob now contains:");
-  console.log(uploaded);
-
-  return true;
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 module.exports = async function handler(req, res) {
   try {
-    const url = getUrl(req);
+    const client = await clientPromise;
+    const db = client.db("library-reviews");
+    const likes = db.collection("likes");
 
-    // Debug endpoint
-    if (req.method === "GET" && url.searchParams.has("debug")) {
-      const { blobs } = await list({
-        token: TOKEN,
-      });
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(
-        JSON.stringify(
-          {
-            success: true,
-            node: process.version,
-            hasToken: !!TOKEN,
-            blobCount: blobs.length,
-            blobs: blobs.map((b) => ({
-              pathname: b.pathname,
-              uploadedAt: b.uploadedAt,
-              size: b.size,
-              url: b.url,
-              downloadUrl: b.downloadUrl,
-              access: b.access,
-            })),
-          },
-          null,
-          2
-        )
-      );
-      return;
-    }
-
-    // GET
     if (req.method === "GET") {
-      const state = await readStateFromStorage();
+      const docs = await likes.find({}).toArray();
 
-      res.statusCode = 200;
+      const state = {};
+
+      for (const doc of docs) {
+        state[doc._id] = doc.count;
+      }
+
       res.setHeader("Content-Type", "application/json");
       res.setHeader("Cache-Control", "no-store");
-      res.end(JSON.stringify(state));
-      return;
+
+      return res.status(200).json(state);
     }
 
-    // POST
     if (req.method === "POST") {
-      let body = "";
+      const { noteId, action } = await readJson(req);
 
-      req.on("data", (chunk) => {
-        body += chunk;
+      if (
+        typeof noteId !== "string" ||
+        !["like", "unlike"].includes(action)
+      ) {
+        return res.status(400).json({
+          error: "Invalid request",
+        });
+      }
+
+      const increment = action === "like" ? 1 : -1;
+
+      const existing = await likes.findOne({
+        _id: noteId,
       });
 
-      req.on("end", async () => {
-        try {
-          const { noteId, action } = JSON.parse(body || "{}");
+      if (!existing) {
+        await likes.insertOne({
+          _id: noteId,
+          count: increment > 0 ? 1 : 0,
+        });
 
-          if (
-            typeof noteId !== "string" ||
-            !["like", "unlike"].includes(action)
-          ) {
-            res.statusCode = 400;
-            res.end(JSON.stringify({ error: "Invalid request" }));
-            return;
-          }
+        return res.status(200).json({
+          count: increment > 0 ? 1 : 0,
+        });
+      }
 
-          const state = await readStateFromStorage();
+      const next = Math.max(0, existing.count + increment);
 
-          const current = Number(state[noteId]) || 0;
-
-          const next =
-            action === "like"
-              ? current + 1
-              : Math.max(0, current - 1);
-
-          state[noteId] = next;
-
-          console.log("State about to upload:", JSON.stringify(state));
-
-          await writeStateToStorage(state);
-
-          res.statusCode = 200;
-          res.setHeader("Content-Type", "application/json");
-          res.setHeader("Cache-Control", "no-store");
-          res.end(JSON.stringify({ count: next }));
-        } catch (err) {
-          console.error(err);
-
-          res.statusCode = 500;
-          res.setHeader("Content-Type", "application/json");
-          res.end(
-            JSON.stringify({
-              success: false,
-              name: err.name,
-              message: err.message,
-              stack: err.stack,
-            })
-          );
+      await likes.updateOne(
+        { _id: noteId },
+        {
+          $set: {
+            count: next,
+          },
         }
-      });
+      );
 
-      return;
+      return res.status(200).json({
+        count: next,
+      });
     }
 
-    res.statusCode = 405;
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ error: "Method not allowed" }));
+    res.setHeader("Allow", "GET, POST");
+
+    return res.status(405).json({
+      error: "Method not allowed",
+    });
   } catch (err) {
     console.error(err);
 
-    res.statusCode = 500;
-    res.setHeader("Content-Type", "application/json");
-    res.end(
-      JSON.stringify({
-        success: false,
-        name: err.name,
-        message: err.message,
-        stack: err.stack,
-      })
-    );
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
