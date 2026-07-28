@@ -55,6 +55,20 @@
     border-color .15s;
 }
 
+@media (max-width: 600px) {
+  .note-header {
+    flex-wrap: wrap;
+  }
+
+  .note-title {
+    flex-basis: 100%;
+  }
+
+  .note-like-button {
+    flex-shrink: 1;
+  }
+}
+
 .note-like-button:hover {
   background: var(--tag-background-hover);
   border-color: var(--tag-border-color-hover);
