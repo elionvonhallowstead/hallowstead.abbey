@@ -96,6 +96,8 @@ module.exports = async function handler(req, res) {
               uploadedAt: b.uploadedAt,
               size: b.size,
               url: b.url,
+              downloadUrl: b.downloadUrl,
+              access: b.access,
             })),
           },
           null,
