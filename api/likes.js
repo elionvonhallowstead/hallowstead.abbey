@@ -33,20 +33,23 @@ async function readStateFromStorage() {
   const latest = await getLatestBlob();
 
   if (!latest) {
+    console.log("No likes.json found");
     return {};
   }
+
+  console.log("Reading blob:", latest.url);
 
   const response = await fetch(latest.url, {
     cache: "no-store",
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Failed reading blob (${response.status})`
-    );
+    throw new Error(`Failed reading blob (${response.status})`);
   }
 
   const text = await response.text();
+
+  console.log("Blob contents:", text);
 
   if (!text.trim()) {
     return {};
@@ -114,50 +117,26 @@ module.exports = async function handler(req, res) {
     if (req.method === "GET") {
       const state = await readStateFromStorage();
 
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Cache-Control", "no-store");
+      console.log("State before:", JSON.stringify(state));
 
-      res.statusCode = 200;
-      res.end(JSON.stringify(state));
-      return;
-    }
+      const current = Number(state[noteId]) || 0;
 
-    if (req.method === "POST") {
-      let body = "";
-
-      req.on("data", (chunk) => {
-        body += chunk;
+      console.log({
+        noteId,
+        action,
+        current,
       });
 
-      req.on("end", async () => {
-        try {
-          const { noteId, action } = JSON.parse(body || "{}");
+      const next =
+        action === "like"
+          ? current + 1
+          : Math.max(0, current - 1);
 
-          if (
-            typeof noteId !== "string" ||
-            !["like", "unlike"].includes(action)
-          ) {
-            res.statusCode = 400;
-            res.end(
-              JSON.stringify({
-                error: "Invalid request",
-              })
-            );
-            return;
-          }
+      state[noteId] = next;
 
-          const state = await readStateFromStorage();
+      console.log("State after:", JSON.stringify(state));
 
-          const current = Number(state[noteId]) || 0;
-
-          const next =
-            action === "like"
-              ? current + 1
-              : Math.max(0, current - 1);
-
-          state[noteId] = next;
-
-          await writeStateToStorage(state);
+      await writeStateToStorage(state);
 
           res.setHeader("Content-Type", "application/json");
           res.setHeader("Cache-Control", "no-store");
