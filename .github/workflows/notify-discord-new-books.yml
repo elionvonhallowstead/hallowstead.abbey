@@ -113,7 +113,7 @@ jobs:
           while IFS= read -r book; do
             [ -z "$book" ] && continue
             PRETTY=$(echo "$book" | tr '-' ' ')
-            send "📚 New book added: **${PRETTY}**\n${SITE_URL}"
+            send "@Sacerdos\nNew book added: **${PRETTY}**\n${SITE_URL}"
           done <<< "$NEW_BOOKS"
 
           while IFS= read -r line; do
@@ -131,8 +131,8 @@ jobs:
           
             if [ -n "$chapters" ]; then
               CH_PRETTY=$(echo "$chapters" | tr ',' '|' | sed 's/|/, /g' | tr '-' ' ')
-              send "✏️ **${PRETTY}** updated - new/edited: ${CH_PRETTY}\n${SITE_URL}"
+              send "**@Sacerdos\n${PRETTY}** updated - new/edited: ${CH_PRETTY}\n${SITE_URL}"
             else
-              send "✏️ **${PRETTY}** updated\n${SITE_URL}"
+              send "**@Sacerdos\n${PRETTY}** updated\n${SITE_URL}"
             fi
           done <<< "$UPDATED_BOOKS"
